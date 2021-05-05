@@ -1,0 +1,135 @@
+---
+title: "Project 1: Exploratory Data Analysis"
+author: "SDS 348 - Nikhil Vj (nv5832)"
+date: "4-6-2021"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+## Introduction
+**After living at home for over a year, I was curious as to which degree the pandemic had changed in the US. I obtained datasets tracking COVID-19 statistics on a state level from the COVID Tracking Project (https://covidtracking.com/data/download), deciding to use data from Texas & California because they are controlled by opposing political parties but are similar in being the most populous states of the US. This comparison is interesting to me because it can show the effects of policies and public sentiment, along with showing the development in COVID-19 prevention on a state level. I expect associations between certain dates like holidays and a spike in cases. Additionally, I expect strong associations between deaths and positive results, along with between date and positive test result numbers.**
+
+\newpage
+## Joining/Merging
+```{r Joining/Merging}
+library(lubridate)
+library(tidyverse)
+library(dplyr)
+TXHis <- read.csv("texas-history.csv")
+CAHis<-read.csv("california-history.csv")
+tx20<-TXHis[-c(370),]
+ca20<-CAHis
+covdata<-full_join(tx20, ca20)
+```
+**I chose to combine both datasets using a full join. While both datasets contained observations from mostly the same variables, some variables were unique to one dataset. I decided to do a full join to conserve data from these unique variables. While I could not compare those observations between states, I can still observe changes in these measures through time. The only case I dropped was row 370 of the Texas dataset, which was the earliest observation date in Texas "03-03-2020". This date was not included in California's dataset, and so the variable date would not provide a proper variable to join by.**
+
+\newpage
+## Tidying & Wrangling
+```{r Pivoting & Wrangling}
+covdata$date<-as.Date(covdata$date)
+covdata<-covdata %>% select(-deathConfirmed,-deathProbable,-hospitalized,-hospitalizedCumulative,-hospitalizedIncrease,-inIcuCumulative,-negative,-negativeIncrease, -negativeTestsAntibody,-negativeTestsPeopleAntibody,-negativeTestsViral,-onVentilatorCumulative,-onVentilatorCurrently,-positiveScore,-positiveTestsPeopleAntibody,-positiveTestsPeopleAntigen, -totalTestEncountersViral,-totalTestEncountersViralIncrease,-totalTestsPeopleAntibody,-totalTestsPeopleAntigen,-totalTestsPeopleViral,-totalTestsPeopleViralIncrease)%>% mutate(TotalPositivity=positive/totalTestResults, RollingPositivity=ifelse(is.infinite(positiveIncrease/totalTestResultsIncrease),0,positiveIncrease/totalTestResultsIncrease))
+covdata%>% arrange(desc(date)) %>% summarise_if(is.numeric,list(Mean=mean,SD=sd,Variance=var,Max=max,N=n_distinct),na.rm=T)%>%pivot_longer(contains("_"))%>% separate(name, into = c("Variable", "Stat"),sep="_")%>%pivot_wider(names_from="Variable",values_from="value")%>%mutate_if(is.numeric,round,3)
+covdata%>%select(-positiveTestsAntibody,-positiveTestsAntigen,-positiveTestsViral,-recovered,-totalTestsAntibody,-totalTestsAntigen)%>%  mutate(date=as.Date(date))%>%filter(date>"2020-06-07")%>%group_by(state)%>%summarise_if(is.numeric,list(Mean=mean,SD=sd,Variance=var,Max=max,N=n_distinct,Median=median),na.rm=T)%>% pivot_longer(contains("_"))%>% separate(name, into = c("Variable", "Stat"),sep="_")%>%pivot_wider(names_from="Variable",values_from="value")%>%mutate_if(is.numeric,round,3)
+```
+
+**To tidy the dataset after obtaining summary values as a whole, I pivoted longer for variables including an underscore to convert the summary variables from columns into rows and their representative values. I then separated the summary variables into variable and statistic columns, which grouped observations by statistics like mean. Finally, I pivoted the dataset wider, allowing the visualization of several statistics for each variable at once. The same process was used to create summary variables for both Texas & California after June 7th 2020 separately.**
+
+**To generate summary statistics by wrangling, I first selected against variables that did not appear consistently or were not measured by both states. I used mutate to generate the variables of Rolling & Total COVID-19 Test Postivity as a function of positive results and testing for each day. For the overall summary where I used statistics like mean, Standard Deviation (SD), Variance, Maximum, and number of distinct observations (N), arranging allowed me to group observations by date and generate statistics using a summary of the resulting data. For the summary by state, I filtered for dates after June 7th 2020, which represented the later half of the dataset and allowed me to use data from a period of sustained COVID-19 response. After grouping the resulting data by state, I was able to summarize the statistics for each variable over the period measured for Texas & California.**
+
+**An interesting result from wrangling of summary statistics was the large variance for all the variables across both summaries with the exception of TotalPositivity (0.000-0.001). This shows that all values except for Total Variance were not stable and changed through time a significant amount. Additionally, the high number of distinct readings for each variable (up to ) indicates instability in each measure, signifying that no variable was stagnant for a significant period of time. Finally, the most interesting result from creating summary statistics was the inconsistency in data recording by both states. This can clearly be seen by the maximum Rolling Positivity of 50.338 for Texas, which means 50.388x the number of tests given on Dec 12th, 2020 in Texas were positive. This is realistically impossible and exemplifies how inconsistent recording occurred in Texas as the state hurried to develop a functional COVID-19 response.**
+
+### Correlation Matrix
+```{r Cor Matrix}
+cov<-covdata%>%select(-state,-positiveTestsAntibody,-positiveTestsAntigen,-positiveTestsViral,-recovered,-totalTestsAntibody,-totalTestsAntigen)%>%mutate(date=as.numeric(date))%>%cor(use="pair")
+cov
+```
+
+\newpage
+## Visualizing
+
+
+### Correlation Heatmap
+```{r Heatmap}
+cov %>% as.data.frame %>% rownames_to_column%>%pivot_longer(-1)%>%ggplot(aes(rowname,name,fill=value))+  geom_tile()+  scale_fill_gradient2(low="red",high="blue")+  geom_text(aes(label=round(value,2)),color = "black", size = 2.25)+ xlab("")+ylab("")+theme(axis.text.x = element_text(size=8,angle = 90, hjust=1), axis.text.y = element_text(size=8))+  coord_fixed()+ggtitle("Correlation Between COVID-19 Tracking Variables")+theme(plot.title = element_text(hjust = 0.5))+xlab("Variable 2")+ylab("Variable 1")
+```
+**In the correlation heatmap, relationships between the variables appear to be mainly positive, with only Positivity Rates having no or negative correlation with other variables. Date and Death have a strong relationship of 0.95, which shows that as measurement date progresses, the number of deaths increase. ICU Care and Hospitalization are also highly positively correlated at 0.97, which shows that more people in hospitals as a result of COVID-19 tends to mean more people in the ICU for the same reason. Death & Date also have a strong positive correlation to the number of positive cases, as they both increase as the date progresses. **
+
+**The number of tests done (totalTestResults) is also highly positively correlated with the number of positive cases (positive) at 0.92 and the Date (0.82) & Death (0.87), which shows their increase through time. Rates of positive increase (positiveIncrease) is also related to hospitalization rates (hospitalizedCurrently) at 0.84 and ICU rates (inIcuCurrently) at 0.76, meaning that increased rates of positive cases implies a greater rate of hospitalization and number of ICU patients. However, an negative correlation is weak between TotalPositivity & the increase in total test results (totalTestResultsIncrease). This indicates that as testing increases, rates of positivity decrease as more negative results occur.**
+
+
+### Plot 1: COVID-19 Positivity Rates
+```{r Plot 1}
+statcov<-covdata%>%select(-positiveTestsAntibody,-positiveTestsAntigen,-positiveTestsViral,-recovered,-totalTestsAntibody,-totalTestsAntigen)%>%mutate_if(is.numeric,round,3)
+statcov$date<-as.Date(statcov$date,format = "%m/%d/%Y")
+statcov %>%
+    gather(key,value, RollingPositivity, TotalPositivity) %>%
+    ggplot(aes(x=date, y=value, alpha=key,color=state)) +
+    geom_point(size=1.25,shape=1)+scale_alpha_discrete(range = c(0.25, 1))+scale_y_continuous(limits = c(0,1),breaks  =  seq(0,1,.1))+scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+theme_minimal()+ggtitle("Comparison of COVID-19 Test Positivity Rates Through Time in TX & CA")+theme(plot.title = element_text(hjust = 0.45))+xlab("Date")+ylab("Proportion")
+```
+**Some trends observed in this plot are the initial spike in test positivity for California at the beginning of data recording and the changes in Rolling Positivity at certain dates. The initial spike in California COVID-19 test positivity shows the low numbers of testing done and the targeting of testing towards populations suspected of COVID-19 infection. This is further explained in the leveling and drop-off of positivity rates for California after the first month of measurement. Observing the Rolling Positivity, we see spikes in the months of August 2020 along with December 2020 and January 2021. A common factor for these months is their occurrence shortly after national holidays such as Independence Day, Thanksgiving, and Christmas. This could help explain the abrupt shifts as more people saw each other and potentially unknowingly transmitted COVID-19. A final trend to observe is the distinction in overall positivity (Total Positivity) between Texas and California. This becomes clear in the month of July, where Texas surpasses a positivity rate of 10% while California stays under 10% throughout the time of data measurement.**
+
+
+### Plot 2: COVID-19 Outcomes
+```{r Plot 2}
+statcov %>% mutate(deathIncreasePerDay=deathIncrease)%>%
+    gather(key,value, deathIncreasePerDay, hospitalizedCurrently,inIcuCurrently) %>%
+    ggplot(aes(x=date, y=value, color=key)) +
+    geom_line(stat = "summary",fun=mean)+scale_y_continuous(limits = c(0,14000),breaks  =  seq(0,14000,1000))+scale_x_date(date_breaks = "2 months", date_labels = "%b-%y")+theme_minimal()+ggtitle("Overall Relationship between COVID-19 Hospitalization, ICU Care, & Death")+ylab("Number of Persons")+xlab("Date")+theme(plot.title = element_text(hjust = 0.3))
+```
+**Trends and relationships found in previous datasets are also exemplified in this plot. Sudden jumps in the lines representing the data can be explained by inconsistencies in data measurement, which can be seen in ICU patient numbers (inIcuCurrently) for July 2020, along with hospitalization numbers (hospitalizationCurrently) in March and April 2020. Another trend found in this graph is the spike for all visualized variables in July, August, and December 2020, along with January 2021. This follows along with the explanation for the previous graph, where increases in cases were seen soon after holidays such as July 4th, Thanksgiving, and Christmas, where people tend to visit each other and the potential for COVID-19 spread is high. Additionally, we also see spikes in death rates following shortly after spikes in hospitalization & ICU. This follows convention, as a rise in intensive care requirements and hospitalization from COVID-19 precludes a greater numbers of deaths, not necessarily a greater proportion. Altogether, this graph supprts the data and conclusions made from previous visualizations.**
+
+\newpage
+## Dimensionality Reduction
+
+### Preparation/PCA
+```{r Dimensionality Reduction}
+vistatcov<-statcov%>%select(-TotalPositivity,-RollingPositivity,-positiveCasesViral,-totalTestsViral, -totalTestsViralIncrease)
+vistatcov[is.na(vistatcov)] = 0
+cov_num<-vistatcov %>% select_if(is.numeric,na.rm=T) %>% scale
+rownames(cov_num)<-vistatcov$date
+cov_pca<-princomp(cov_num)
+```
+
+### Choosing Number of PCs (Scree Plot, Kaiser's Rule)
+```{r Scree Plot}
+eigval<-cov_pca$sdev^2
+varprop=round(eigval/sum(eigval), 2)
+ggplot() + geom_bar(aes(y=varprop, x=1:8), stat="identity") + xlab("") + geom_path(aes(y=varprop,x=1:8))+geom_text(aes(x=1:8, y=varprop, label=round(varprop, 2)), vjust=1, col="orange", size=5)+ scale_y_continuous(breaks=seq(0, .6, .2), labels =scales::percent)+scale_x_continuous(breaks=1:10)+ggtitle("Scree Plot for PCA of COVID-19 Data")+theme(plot.title = element_text(hjust = 0.5))+xlab("Principal Component")+ylab("Percentage of Variance Accounted For")
+eigval
+```
+
+### Computation/Visualization (PC Plot & Plot of Loadings)
+```{r PC Plot/Plot of Loadings}
+
+covplot<-statcov %>% select_if(is.numeric,na.rm=T)
+statcov%>%mutate(PC1=cov_pca$scores[, 1], PC2=cov_pca$scores[, 2]) %>%
+ggplot(aes(PC1, PC2, color=state)) + geom_point() + coord_fixed()+ggtitle("PC Plot of Relevant Principal Components in COVID-19 Data")+theme(plot.title = element_text(hjust = 0.5))+xlab("PC1 Score")+ylab("PC2 Score")
+
+library(ggrepel)
+cov_pca$loadings[1:8, 1:2] %>% as.data.frame %>% rownames_to_column %>%
+ggplot() + geom_hline(aes(yintercept=0), lty=2) +
+geom_vline(aes(xintercept=0), lty=2) + ylab("PC2") + xlab("PC1") +
+geom_segment(aes(x=0, y=0, xend=Comp.1, yend=Comp.2), arrow=arrow(), col="red") +
+geom_label_repel(aes(x=Comp.1, y=Comp.2, label=rowname))+ggtitle("PCA Plot of Loadings for Relevant Principal Components")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Interpretation
+```{r Interpretation}
+cov_pca$loadings
+summary(cov_pca, loadings=T)
+```
+**The results found from PCA seem to show that the data can be combined into two principal components which explains a large amount of variability in the data (86%). I was able to obtain this measurement using a scree plot and Kaiser's rule, which showed that two principal components accounted for the vast majority of the dataset's variability. The principal component (PC1) is a general strength axis, while the second principal component (PC2) is an axis measuring Death (0.48) vs positiveIncrease (-0.51). This can help explain the PC plot's W-like shape for both states. The furthest-right vertical band on the PC plot can be explained by more recent days of measurement, with large amounts of death and small numbers of cases or vice versa. Following this pattern, the furthest right horizontal band can be explained by days of high hospitalization and low increase in cases. This explains why California's banding appears to be larger, as they had days with greater numbers of deaths but lower rates of positivity as seen in the visualized plots.**
+
+## Conclusion
+
+**In conclusion, there are some very interesting trends that are found after analysis of the data. However, I believe that more interesting correlations could have been discovered with greater collection of data, and if both states properly recorded shared statistics. We found that levels of COVID-19 and our response to it changed through time, as exhibited by the high variance seen from summary statistics. Through the graphs, we were able to visualize some of the relationships both between Texas & California, and overall. We can see California's initial positivity spike, along with Texas's overall higher positivity rate and each state's spikes through time. We also saw and analyzed the hospitalization, ICU, and death counts, finding spikes around holidays and a slight relative delay in death rates. Finally with the PCA data, we find that two clusters explain 86% of the variance due to strong relationships between the variables. Using the PC plot, we find again that there is a large amount of variability throughout the dataset. Future analysis of this data might reveal greater correlations for the decline of COVID-19, which might be best measured once joined with a dataset tracking vaccination rates in the US. At that time, we will also be able to compare the changes between prepared and unprepared responses to COVID-19 with the inclusion of more data.**
+
+
+

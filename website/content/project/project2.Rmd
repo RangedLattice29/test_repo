@@ -1,0 +1,281 @@
+---
+title: 'Project 2: Modeling, Testing, and Predicting'
+author: "Nikhil Vj (nv5832)"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document:
+    toc: no
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE,fig.align="center",warning=FALSE,message=FALSE,fig.width=8, fig.height=5, linewidth=60)
+options(tibble.width = 100,width = 100)
+library(tidyverse)
+class_diag<-function(probs,truth){
+  
+  tab<-table(factor(probs>.5,levels=c("FALSE","TRUE")),truth)
+  acc=sum(diag(tab))/sum(tab)
+  sens=tab[2,2]/colSums(tab)[2]
+  spec=tab[1,1]/colSums(tab)[1]
+  ppv=tab[2,2]/rowSums(tab)[2]
+
+  if(is.numeric(truth)==FALSE & is.logical(truth)==FALSE) truth<-as.numeric(truth)-1
+  
+  ord<-order(probs, decreasing=TRUE)
+  probs <- probs[ord]; truth <- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup<-c(probs[-1]>=probs[-length(probs)], FALSE)
+  TPR<-c(0,TPR[!dup],1); FPR<-c(0,FPR[!dup],1)
+  
+  n <- length(TPR)
+  auc<- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,auc)
+}
+```
+
+## Introduction
+
+- **0. (5 pts)** Introduce your dataset and each of your variables (or just your main variables if you have lots) in a paragraph. What are they measuring? How many observations?
+
+```{r Data}
+library(flexmix)
+data(dmft)
+```
+
+**I chose to use the "dmft" dataset from the package "flexmix". This dataset includes observations of a study on the efficacy of various methods to improve dental hygiene and reduce caries in schoolchildren from an urban area of Brazil. The main numeric variables, 'End' and 'Begin', describe the number of abnormal teeth (decayed, missing, or filled) for each child at the end and beginning of the study. The other three categorical values, 'Gender', 'Ethnic', and 'Treatment', describe the characteristics of the study participant and the study group to which they were assigned. For this study, 797 observations from unique participants were included in the dataset. The analysis of this study might provide evidence for specific dental hygiene methods as being more effective than others, and that these methods should be more widely practiced.**
+
+## MANOVA Testing
+
+- **1. (15 pts)** Perform a MANOVA testing whether any of your numeric variables (or a subset of them, if including them all is unreasonable or doesn't make sense) show a mean difference across levels of one of your categorical variables (3). If they do, perform univariate ANOVAs to find response(s) showing a mean difference across groups (3), and perform post-hoc t tests to find which groups differ (3). Discuss the number of tests you have performed, calculate the probability of at least one type I error (if unadjusted), and adjust the significance level accordingly (bonferroni correction) before discussing significant differences (3). Briefly discuss some of the MANOVA assumptions and whether or not they are likely to have been met here (no need for anything too in-depth) (2).
+
+```{r MANOVA}
+man <- manova(cbind(Begin,End)~Treatment, data=dmft)
+summary(man)
+summary.aov(man)
+pairwise.t.test(dmft$Begin,dmft$Treatment, p.adj="none")
+pairwise.t.test(dmft$End,dmft$Treatment, p.adj="none")
+1-(0.95^33)
+0.05/33
+pairwise.t.test(dmft$Begin,dmft$Treatment, p.adj="none")$p.value<0.05/33
+pairwise.t.test(dmft$End,dmft$Treatment, p.adj="none")$p.value<0.05/33
+```
+
+**I decided to MANOVA test for the mean difference in caries before and after treatment for the treatment groups that the children were assigned to. The results of the test showed that there were significant differences (p = 0.0000005695) in the number of dental caries that the children had depending on what group they were in. As such, I ran univariate ANOVA tests to determine the specific condition in which groups differed in the average number of caries, finding that treatment categories differed significantly in the number of caries both before treatment (p = 0.002702) and after treatment (p = 0.000008699). Performing post-hoc t-tests allowed determination of the exact treatment groups that differed before treatment and after treatment. However, the analysis of these probabilities for significance could only be conducted after performing the Bonferroni correction for the number of tests performed, of which there were 33. With this number of tests, the probability of making a Type I error without adjustment becomes 1-(0.95)^33, or 0.8160. After adjusting the significance level to 0.05/33, or 0.001515152, we find that the only groups that differ significantly (p = 0.00044) in the number of caries before treatment are the 'all' treatment group, which combines dental enrichment, education, mouthwash, and hygiene, and the 'educ' treatment group, which only includes oral health education. However, this difference disappears after treatment while other differences appear. After treatment, the control group differs from the 'all' treatment group (p = 0.00000064) and the 'rinse' treatment group (p = 0.00045), while the 'all' treatment group also differs from the 'enrich' treatment group (p = 0.00005588). While the dataset seems to meet most of MANOVA's assumptions, some assumptions might not. The data includes random samples, independent observations, linear relationships between the number of caries, and no extreme outliers. However, there isn't necessarily a normal distribution or equal variance within the number of caries for each treatment group.**
+
+## Randomization Testing
+
+- **2. (10 pts)** Perform some kind of randomization test on your data (that makes sense). The statistic can be anything you want (mean difference, correlation, F-statistic/ANOVA, chi-squared), etc. State null and alternative hypotheses, perform the test, and interpret the results (7). Create a plot visualizing the null distribution and the test statistic (3).
+
+```{r Randomization}
+set.seed(348)
+library(vegan)
+dists <- dmft%>%select(Begin, End)%>%dist
+adonis(dists~Treatment,data=dmft)
+
+SST<- sum(dists^2)/797
+SSW<-dmft%>%group_by(Treatment)%>% select(Treatment,Begin,End)%>%
+  do(d=dist(.[-1],"euclidean"))%>%ungroup()%>%
+  summarize(sum(d[[1]]^2)/136 + sum(d[[2]]^2)/124+ sum(d[[3]]^2)/127+ sum(d[[4]]^2)/132+ sum(d[[5]]^2)/155+ sum(d[[6]]^2)/123)%>%pull
+
+F_obs<-((SST-SSW)/(6-1))/(SSW/(797-6))
+
+Fstat<-replicate(1000,{
+  new <- dmft%>%mutate(Treatment=sample(Treatment))
+  SSW <- new%>%group_by(Treatment)%>%select(Treatment,Begin,End)%>%
+    do(d=dist(.[-1],"euclidean"))%>%ungroup()%>%
+    summarize(sum(d[[1]]^2)/136 + sum(d[[2]]^2)/124+ sum(d[[3]]^2)/127+ sum(d[[4]]^2)/132+ sum(d[[5]]^2)/155+ sum(d[[6]]^2)/123)%>%pull
+  ((SST-SSW)/5)/(SSW/791)
+})
+
+{hist(Fstat,prob = T); abline(v=F_obs, col="blue", add=T)}
+mean(Fstat>F_obs)
+```
+
+**I decided to investigate whether the number of caries before and after treatment were significantly different by group, and so chose to perform a randomization test MANOVA to ensure a mean difference between groups. Randomizing the observations among groups allows for a null hypothesis stating that the average number of caries for each treatment group is not significantly different from the other groups at the same time (before or after treatment). In addition, the alternative hypothesis then becomes that the average number of caries in each treatment group significantly differs from the other groups at the same time relative to treatment. After performing the randomization test with 5 degrees of freedom between groups and 791 within residuals, the F-statistic observed is 4.4792 (p < 0.001). This was verified after manually creating a null distribution for the F-statistic. Visualizing this null distribution and the observed F-statistic using a blue line shows that our observed statistic is literally "off the charts". This shows that our statistic is highly significant and that the treatment groups significantly differ in the average number of caries based on the time relative to treatment.**
+
+## Linear Regression
+
+- **3. (40 pts)** Build a linear regression model predicting one of your response variables from at least 2 other variables, including their interaction. Mean-center any numeric variables involved in the interaction.
+
+    - Interpret the coefficient estimates (do not discuss significance) (10)
+    - Plot the regression using `ggplot()` using geom_smooth(method="lm"). If your interaction is numeric by numeric, refer to code in the slides to make the plot or check out the `interactions` package, which makes this easier. If you have 3 or more predictors, just chose two of them to plot for convenience. (10)
+    - What proportion of the variation in the outcome does your model explain? (4)
+    - Check assumptions of linearity, normality, and homoskedasticity either graphically or using a hypothesis test (5)
+    - Regardless, recompute regression results with robust standard errors via `coeftest(..., vcov=vcovHC(...))`. Discuss significance of results, including any changes from before/after robust SEs if applicable. (10)
+    
+```{r Linear Regression}
+dmft<-dmft%>%mutate(End_c=End-mean(End),Begin_c=Begin-mean(Begin))
+fit <- lm(End_c ~ Begin_c*Treatment, data=dmft); summary(fit)
+ggplot(dmft, aes(x=Begin_c, y=End_c,group=Treatment))+geom_jitter(aes(color=Treatment))+
+  geom_smooth(method="lm",aes(color=Treatment))+xlab("Mean-Centered # of Caries at Beginning of Treatment")+ylab("Mean-Centered # of Caries at End of Treatment")
+
+resids<-fit$residuals
+fitvals<-fit$fitted.values
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color='red')
+ggplot()+geom_histogram(aes(resids), bins=20)
+ggplot()+geom_qq(aes(sample=resids))+geom_qq_line(aes(sample=resids))
+shapiro.test(resids)
+
+library(sandwich)
+library(lmtest)
+bptest(fit)
+summary(fit)$coef%>%round(4)
+coeftest(fit, vcov = vcovHC(fit))
+```
+
+**I designed a linear model to predict the number of caries for a child relative to the average at the end of treatment. While there are a lot of significant predictors, surprisingly, some variables are not significant in predicting the number of caries at the end of treatment. The intercept coefficient indicates that, for an average child in the control group with an average number of caries at the beginning of treatment (~3.3237 caries), the child will have 0.2921 caries more than average (~1.8545 caries) at the end of treatment. The coefficient for 'Begin_c' indicates that having one caries more than the average at the beginning of treatment suggests the child will end treatment with 0.5311 more caries than average. Likewise, the coefficients for the different treatment groups indicate their effects on the number of caries at the end of treatment, with the 'educ' (-0.4406), 'all' (-0.6920), 'rinse' (-0.4945), and 'hygiene' (-0.1518) treatment groups predicted to reduce the number of caries relative to the average while the 'enrich' treatment group (0.0132) is predicted to increase the number of caries relative to the average at the end of treatment. The interactions between the mean-centered number of caries at the beginning of treatment and the treatment groups are all predicted to reduce the number of caries at the end of the treatment when compared to the average. From the adjusted R-squared of the linear model created, we see that 38.73% of the total variation in number of caries at the end of treatment can be explained by the variables used in the model and their interaction. Based on the plot of the model, there doesn't seem to be a strong linearity to the input and output variables in this dataset. Adding on to that, on the residual plot, we see that the data does not meet the assumption of homoscedasticity either, with the residuals maintaining an even spread throughout the range of fitted values. This is verified through the significantly small p-value (0.00000000000009123) determined from the Breusch-Pagan test. However, the assumption of normality is met, and this is proven through the roughly normal distribution on the histogram and the Q-Q plot strictly following a diagonal line. Unfortunately, verifying this model through the Shapiro-Wilk test determines that the dataset does not meet the normality assumption, with the significant p-value (0.00007246) serving to reject the null hypothesis of normality. After computing robust standard errors, we find that the overall significance of the coefficients does not change, even if the estimates for the intercept and the 'rinse' treatment group increases in significance. Additionally, the standard error of some variables are increased or decreased. Overall, this indicates that the coefficient for the beginning number of caries, 'Begin_c', and the treatment groups of 'educ', 'all', and 'rinse', strongly influence the number of caries at the end of treatment, along with the interaction between 'Begin_c' and the treatment groups 'educ', 'all', 'enrich', and 'rinse'.**
+
+## Bootstrapped Linear Regression
+
+- **4. (5 pts)** Rerun same regression model (with the interaction), but this time compute bootstrapped standard errors (either by resampling observations or residuals). Discuss any changes you observe in SEs and p-values using these SEs compared to the original SEs and the robust SEs)
+
+```{r Bootstrapping}
+set.seed(348)
+  fit<-lm(End_c ~ Begin_c*Treatment, data=dmft)
+  resids<-fit$residuals
+  fitted<-fit$fitted.values 
+  
+  resid_resamp<-replicate(5000,{
+    new_resids<-sample(resids,replace=TRUE)
+    dmft$new_End_c<-fitted+new_resids 
+    fit<-lm(new_End_c~Begin_c*Treatment, data=dmft)
+    coef(fit)
+})
+resid_resamp%>%t%>%as.data.frame%>%summarize_all(sd)%>%pivot_longer(1:12,names_to = "Coefficient", values_to = "Bootstrapped SE")
+summary(fit)$coef%>%round(4)
+coeftest(fit, vcov = vcovHC(fit))
+```
+
+**After adjusting the regression model to find boostrapped standard errors through resampling residuals, we find that the SEs of the bootstrapped model are comparable to the original SEs, with the maximum difference between Standard Errors being 0.036 for the 'all' treatment group. As such, we would not expect the p-value to change in significance. However, when comparing to the robust standard errors, we see that there are larger differences, which can be seen in the comparison of standard errors of the coefficient for the treatment group 'educ'. This group has a standard error of 0.1682 with bootstrapping and 0.1543 with robust SE, a difference of 0.0139. However, this is again a relatively small difference in SEs, and we would not expect the p-values to change significantly as a result.**
+
+## Limited Logistic Regression
+
+- **5. (30 pts)** Fit a logistic regression model predicting a binary variable (if you don't have one, make/get one) from at least two explanatory variables (interaction not necessary). 
+
+    - Interpret coefficient estimates in context (10)
+    - Report a confusion matrix for your logistic regression (5)
+    - Compute and discuss the Accuracy, Sensitivity (TPR), Specificity (TNR), and Precision (PPV) of your model (5)
+    - Using ggplot, make a density plot of the log-odds (logit) colored/grouped by your binary outcome variable (5)
+    - Generate an ROC curve (plot) and calculate AUC (either manually or with a package); interpret (5)
+
+```{r}
+data<-dmft%>%mutate(y=ifelse(End_c>0,0,1),outcome=ifelse(End_c>0,0,1))
+limlog<-glm(y~Begin_c+Treatment, data=data, family=binomial)
+coeftest(limlog)
+exp(coeftest(limlog))[,1]
+data$prob <- predict(limlog,type="response")
+data$predicted <- ifelse(data$prob>.5,"Less than 2 caries","2 or More caries")
+data$outcome<-factor(data$outcome,levels=c("0","1"))
+levels(data$outcome) <- c("2 or More Caries", "Less Than 2 Caries")
+table(truth=data$outcome, prediction=data$predicted)%>%addmargins
+(288+287)/797 # Accuracy
+287/394 # Sensitivity/TPR
+288/403 # Specificity/TNR
+287/402 # Precision/PPV
+class_diag(data$prob,data$outcome)
+data$logit<-predict(limlog)
+ggplot(data,aes(logit, fill=outcome))+geom_density(alpha=.3)+geom_rug(aes(logit,color=outcome))+
+  geom_vline(xintercept=0,lty=2)+theme(legend.position=c(.125,.875))+xlab("logit (log-odds)")
+library(plotROC)
+ROCplot<-ggplot(data)+geom_roc(aes(d=outcome,m=prob), n.cuts=0)+geom_segment(aes(x=0,y=0,xend=1,yend=1),lty=2)+xlab("FPR")+ylab("TPR")
+ROCplot
+calc_auc(ROCplot)
+``` 
+
+**Using a logistic regression to predict the odds of a child having less than two caries after treatment, however, finds some interesting results. At a significance level of 0.05, we see that only the coefficients for the intercept, 'Begin', and the treatment groups 'all' and 'rinse' are of interest. In context, the intercept predicts that children that start in the control group with the average number of caries before treatment will have odds of 0.6387:1 of having less than 2 caries at the end of treatment, an unfortunate outcome. In addition to that, we see that with each additional caries over average that the child has before treatment, the odds of having less than two caries after treatment decreases by 38%. However, thankfully, we see that being in the 'all' or 'rinse' treatment groups multiplies the odds of the child ending treatment with less than two caries by 2.54 and 1.95, respectively. While insignificant, we see that the other treatment groups except 'enrich' also increases the odds of having less than two caries at the end of treatment, with 'educ' treatment multiplying the odds by 1.61 and 'hygiene' multiplying the odds by 1.50. However, the 'enrich' treatment group was actually found to decrease the odds of finishing treatment with less than 2 caries by 9%, but this estimate was insignificant as stated earlier. Creating a confusion matrix for the predictions of this model shows us that the accuracy of the model at predicting whether the child would end treatment with less than 2 caries was 72.15%. The model was also able to predict 287 of the 394 children who ended treatment with less than 2 caries, an sensitivity of 72.84%. Conversely, the model predicted 288 of the 403 children ending treatment with 2 caries or more correctly, for a specificity of 71.46%. Finally, 287 of the 402 children predicted as ending treatment with less than 2 caries actually did so for a precision, or Positive Predictive Value of 71.39%. While the classification diagnostics for this model appear to be high, it also indicates a large chance for error in prediction. However, generation of the ROC curve and AUC calculation (80.4%) pin this model as good at predicting new data. Visually, the curve approaches the top-left corner of the graph (good) and the high AUC indicates a large degree of separability for the model. These diagnostics statistically prove the logistic regression model is good at predicting if these children will end treatment with less than 2 caries or not.**
+
+## Full Logistic Regression
+
+- **6. (25 pts)** Perform a logistic regression predicting the same binary response variable from *ALL* of the rest of your variables (the more, the better!) 
+
+    - Fit model, compute in-sample classification diagnostics (Accuracy, Sensitivity, Specificity, Precision, AUC), and interpret (5)
+    - Perform 10-fold (or repeated random sub-sampling) CV with the same model and report average out-of-sample classification diagnostics (Accuracy, Sensitivity, Specificity, Precision, and AUC); interpret AUC and compare with the in-sample metrics (10)
+    - Perform LASSO on the same model/variables. Choose lambda to give the simplest model whose accuracy is near that of the best (i.e., `lambda.1se`). Discuss which variables are retained. (5)
+    - Perform 10-fold CV using only the variables lasso selected: compare model's out-of-sample AUC to that of your logistic regressions above (5)
+    
+```{r}
+dataf<-dmft%>%mutate(y=ifelse(End_c>0,0,1),outcomef=ifelse(End_c>0,0,1))
+log<-glm(y~Begin_c+Treatment+Gender+Ethnic, data=dataf, family=binomial)
+coeftest(log)
+exp(coeftest(log))[,1]
+dataf$probf <- predict(log,type="response")
+dataf$predictedf <- ifelse(dataf$probf>.5,"Less than 2 caries","2 or More caries")
+dataf$outcomef<-factor(dataf$outcomef,levels=c("0","1"))
+levels(dataf$outcomef) <- c("2 or More Caries", "Less Than 2 Caries")
+table(truth=dataf$outcomef, prediction=dataf$predictedf)%>%addmargins
+class_diag(dataf$probf,dataf$outcomef)
+
+set.seed(348)
+k=10
+dat<-dataf[sample(nrow(dataf)),] 
+folds<-cut(seq(1:nrow(dataf)),breaks=k,labels=F)
+diags<-NULL
+for(i in 1:k){
+  train<-dat[folds!=i,] 
+  test<-dat[folds==i,]
+  
+  truth<-test$y
+  
+  fitf<-glm(y~Begin+Treatment+Gender+Ethnic,data=train,family="binomial")
+  
+  probs<-predict(fitf,newdata = test,type="response")
+  
+  diags<-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)
+
+library(glmnet)
+set.seed(348)
+y<-as.matrix(dataf$y)
+x<-model.matrix(y~Begin_c+Treatment+Gender+Ethnic,data=dataf)[,-1]
+cv<-cv.glmnet(x,y)
+{plot(cv$glmnet.fit, "lambda", label=TRUE); abline(v = log(cv$lambda.1se)); abline(v = log(cv$lambda.min),lty=2)}
+cv<-cv.glmnet(x,y,family="binomial")
+lasso<-glmnet(x,y,family="binomial",lambda=cv$lambda.1se)
+coef(lasso)
+
+set.seed(348)
+k=10
+dat<-dataf[sample(nrow(dataf)),] 
+folds<-cut(seq(1:nrow(dataf)),breaks=k,labels=F)
+diags<-NULL
+for(i in 1:k){
+  train<-dat[folds!=i,] 
+  test<-dat[folds==i,]
+  
+  truth<-test$y
+  
+  fitf<-glm(y~Begin,data=train,family="binomial")
+  
+  probs<-predict(fitf,newdata = test,type="response")
+  
+  diags<-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)
+```
+
+**When performing the same logistic regression based on all the variables, it is seen that the only significant estimates are that of the intercept, the treatment groups 'all' & 'rinse', along with the coefficient for the number of caries at the beginning of the study, 'Begin'. Just like the previous regression models, this model shows that increasing the number of caries at the beginning decreases the odds of ending treatment with less than 2 caries, while the combination treatment of 'all' or the 'rinse' treatment increases the odds. The accuracy (0.7240), sensitivity (0.7284), specificity (0.7196), precision (0.7175), and AUC (0.8039) of this model show that it is good at predicting new data and is consistent among each of its measures. Performing 10-fold CV with this same model leads to somewhat similar diagnostics out-of-sample, where the accuracy (0.7177), sensitivity (0.7220), specificity (0.7098), precision (0.7080), and AUC (0.7920) of this model show that it is fair at predicting new data and is consistent among each of its measures, even if it is slightly worse than the original in-sample diagnostics without correction. Performing LASSO on this model and its variables shows that the smallest coefficients, and so the most accurate lambda, occur at a value of at least lambda+1se. Using this value leads to only the intercept and the 'Begin' variable being kept, a sign that the simplest model with high accuracy in predicting the odds of having less than 2 caries at the end of the study only requires the number of caries the child had at the beginning of the study to be accurate. Performing 10-fold CV on this new model leads to a slightly surprising result. While the simple model was determined to still have a high level of predictability, the accuracy (0.7228), sensitivity (0.7525), specificity (0.6897), precision (0.7011), and AUC (0.7923) of this simple model slightly surpass the diagnostics of the 10-fold CV on the full model. In fact, the simple model even has greater accuracy and sensitivity than the overfitted model, showing that it has improved beyond the original classification diagnostics even after correcting for overfitting. Overall, we see that these models are fair to good at predicting the caries status of children after treatment, and that the number of caries the children had at the beginning of the study is the best predictor of such an effect.**
+
+## Conclusion
+
+**After analysis of the data, we see that there are some significant effects of treatment on the caries status of urban schoolchildren near Belo Horizonte. Using MANOVAs & t-tests, we find that the caries status of children did not significantly differ between groups before or after treatment, with the exception of the 'all', 'rinse', and 'educ' groups, whose significance we will see later on. Using randomization MANOVA, we found that a mean difference between treatment groups for caries status exists, and that this difference is significant based on its rarity. Linear modeling displayed the significant effect of the 'all', 'rinse', and 'educ' treatment groups on the number of caries schoolchildren will have after treatment while accounting for 39% of the variability in the dataset. Additionally, this model showed that the number of caries the children had at the beginning, 'Begin', was the biggest predictor of this effect, especially when considering its signficant interactions with the treatment groups. Bootstrapping the model supported these findings, with the Standard Errors not differing by a notable amount or affecting the significance of the findings. However, creating a logistic regression model returns slightly different, yet good prediction results. We see that the effect of the 'educ' treatment group becomes insignificant, and that treatment groups 'all' and 'rinse' increase the odds of ending treatment with less than two caries while starting with more caries ('Begin') decreases them. These predictors are reduced even further when adjusting the model for overfitting and simplicity using 10-fold CV and LASSO, with findings showing that only the variable 'Begin' is necessary to predict as well as the original logistic regression model. Overall, we see that treating children through education, hygiene, mouthwash, or a combination with enrichment may increase chances of reducing and mitigating the development of dental caries. However, only mouthwash and the combination treatment are significant in creating this effect. A surprise finding, however, is that enrichment of the school diet with rice bran may potentially lead to the development of more caries, but this effect is yet to be found significant and may be due to a false sense of security. Regardless of treatment, the main and most significant predictor of dental caries after treatment is the number of caries a child has before treatment, which can be seen in the simplified model still being fair to good at predicting new data.**

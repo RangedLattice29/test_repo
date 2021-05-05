@@ -1,0 +1,19 @@
+---
+title: First Blog Ever
+author: 'Nikhil Vj'
+date: '2021-05-05'
+slug: first-blog-ever
+categories: []
+tags: []
+description: ''
+---
+I have never done this before.
+```{r}
+
+```
+
+```{python}
+
+```
+
+[Link to project 1](/project/project1/)

@@ -1,0 +1,525 @@
+---
+title: 'Project 2: Modeling, Testing, and Predicting'
+author: "Nikhil Vj (nv5832)"
+date: "May 05, 2021"
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document:
+    toc: no
+---
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<ul>
+<li><strong>0. (5 pts)</strong> Introduce your dataset and each of your variables (or just your main variables if you have lots) in a paragraph. What are they measuring? How many observations?</li>
+</ul>
+<pre class="r"><code>library(flexmix)
+data(dmft)</code></pre>
+<p><strong>I chose to use the “dmft” dataset from the package “flexmix”. This dataset includes observations of a study on the efficacy of various methods to improve dental hygiene and reduce caries in schoolchildren from an urban area of Brazil. The main numeric variables, ‘End’ and ‘Begin’, describe the number of abnormal teeth (decayed, missing, or filled) for each child at the end and beginning of the study. The other three categorical values, ‘Gender’, ‘Ethnic’, and ‘Treatment’, describe the characteristics of the study participant and the study group to which they were assigned. For this study, 797 observations from unique participants were included in the dataset. The analysis of this study might provide evidence for specific dental hygiene methods as being more effective than others, and that these methods should be more widely practiced.</strong></p>
+</div>
+<div id="manova-testing" class="section level2">
+<h2>MANOVA Testing</h2>
+<ul>
+<li><strong>1. (15 pts)</strong> Perform a MANOVA testing whether any of your numeric variables (or a subset of them, if including them all is unreasonable or doesn’t make sense) show a mean difference across levels of one of your categorical variables (3). If they do, perform univariate ANOVAs to find response(s) showing a mean difference across groups (3), and perform post-hoc t tests to find which groups differ (3). Discuss the number of tests you have performed, calculate the probability of at least one type I error (if unadjusted), and adjust the significance level accordingly (bonferroni correction) before discussing significant differences (3). Briefly discuss some of the MANOVA assumptions and whether or not they are likely to have been met here (no need for anything too in-depth) (2).</li>
+</ul>
+<pre class="r"><code>man &lt;- manova(cbind(Begin,End)~Treatment, data=dmft)
+summary(man)</code></pre>
+<pre><code>## Df Pillai approx F num Df den Df Pr(&gt;F)
+## Treatment 5 0.059873 4.8821 10 1582 5.695e-07 ***
+## Residuals 791
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>summary.aov(man)</code></pre>
+<pre><code>## Response Begin :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Treatment 5 120.0 23.9998 3.6758 0.002702 **
+## Residuals 791 5164.5 6.5291
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Response End :
+## Df Sum Sq Mean Sq F value Pr(&gt;F)
+## Treatment 5 89.19 17.8385 6.3448 8.699e-06 ***
+## Residuals 791 2223.92 2.8115
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>pairwise.t.test(dmft$Begin,dmft$Treatment, p.adj=&quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  dmft$Begin and dmft$Treatment 
+## 
+##         control educ    all     enrich  rinse  
+## educ    0.51900 -       -       -       -      
+## all     0.00312 0.00044 -       -       -      
+## enrich  0.20560 0.06072 0.08993 -       -      
+## rinse   0.21085 0.05965 0.06805 0.94851 -      
+## hygiene 0.01544 0.00276 0.61412 0.24043 0.20001
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(dmft$End,dmft$Treatment, p.adj=&quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  dmft$End and dmft$Treatment 
+## 
+##         control educ    all     enrich  rinse  
+## educ    0.02068 -       -       -       -      
+## all     6.4e-07 0.00882 -       -       -      
+## enrich  0.34378 0.16911 5.6e-05 -       -      
+## rinse   0.00045 0.29594 0.08643 0.01202 -      
+## hygiene 0.00973 0.78575 0.01919 0.09943 0.44930
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>1-(0.95^33)</code></pre>
+<pre><code>## [1] 0.8159741</code></pre>
+<pre class="r"><code>0.05/33</code></pre>
+<pre><code>## [1] 0.001515152</code></pre>
+<pre class="r"><code>pairwise.t.test(dmft$Begin,dmft$Treatment, p.adj=&quot;none&quot;)$p.value&lt;0.05/33</code></pre>
+<pre><code>##         control  educ   all enrich rinse
+## educ      FALSE    NA    NA     NA    NA
+## all       FALSE  TRUE    NA     NA    NA
+## enrich    FALSE FALSE FALSE     NA    NA
+## rinse     FALSE FALSE FALSE  FALSE    NA
+## hygiene   FALSE FALSE FALSE  FALSE FALSE</code></pre>
+<pre class="r"><code>pairwise.t.test(dmft$End,dmft$Treatment, p.adj=&quot;none&quot;)$p.value&lt;0.05/33</code></pre>
+<pre><code>##         control  educ   all enrich rinse
+## educ      FALSE    NA    NA     NA    NA
+## all        TRUE FALSE    NA     NA    NA
+## enrich    FALSE FALSE  TRUE     NA    NA
+## rinse      TRUE FALSE FALSE  FALSE    NA
+## hygiene   FALSE FALSE FALSE  FALSE FALSE</code></pre>
+<p><strong>I decided to MANOVA test for the mean difference in caries before and after treatment for the treatment groups that the children were assigned to. The results of the test showed that there were significant differences (p = 0.0000005695) in the number of dental caries that the children had depending on what group they were in. As such, I ran univariate ANOVA tests to determine the specific condition in which groups differed in the average number of caries, finding that treatment categories differed significantly in the number of caries both before treatment (p = 0.002702) and after treatment (p = 0.000008699). Performing post-hoc t-tests allowed determination of the exact treatment groups that differed before treatment and after treatment. However, the analysis of these probabilities for significance could only be conducted after performing the Bonferroni correction for the number of tests performed, of which there were 33. With this number of tests, the probability of making a Type I error without adjustment becomes 1-(0.95)^33, or 0.8160. After adjusting the significance level to 0.05/33, or 0.001515152, we find that the only groups that differ significantly (p = 0.00044) in the number of caries before treatment are the ‘all’ treatment group, which combines dental enrichment, education, mouthwash, and hygiene, and the ‘educ’ treatment group, which only includes oral health education. However, this difference disappears after treatment while other differences appear. After treatment, the control group differs from the ‘all’ treatment group (p = 0.00000064) and the ‘rinse’ treatment group (p = 0.00045), while the ‘all’ treatment group also differs from the ‘enrich’ treatment group (p = 0.00005588). While the dataset seems to meet most of MANOVA’s assumptions, some assumptions might not. The data includes random samples, independent observations, linear relationships between the number of caries, and no extreme outliers. However, there isn’t necessarily a normal distribution or equal variance within the number of caries for each treatment group.</strong></p>
+</div>
+<div id="randomization-testing" class="section level2">
+<h2>Randomization Testing</h2>
+<ul>
+<li><strong>2. (10 pts)</strong> Perform some kind of randomization test on your data (that makes sense). The statistic can be anything you want (mean difference, correlation, F-statistic/ANOVA, chi-squared), etc. State null and alternative hypotheses, perform the test, and interpret the results (7). Create a plot visualizing the null distribution and the test statistic (3).</li>
+</ul>
+<pre class="r"><code>set.seed(348)
+library(vegan)
+dists &lt;- dmft%&gt;%select(Begin, End)%&gt;%dist
+adonis(dists~Treatment,data=dmft)</code></pre>
+<pre><code>##
+## Call:
+## adonis(formula = dists ~ Treatment, data = dmft)
+##
+## Permutation: free
+## Number of permutations: 999
+##
+## Terms added sequentially (first to last)
+##
+## Df SumsOfSqs MeanSqs F.Model R2 Pr(&gt;F)
+## Treatment 5 209.2 41.838 4.4792 0.02753 0.001 ***
+## Residuals 791 7388.4 9.341 0.97247
+## Total 796 7597.6 1.00000
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>SST&lt;- sum(dists^2)/797
+SSW&lt;-dmft%&gt;%group_by(Treatment)%&gt;% select(Treatment,Begin,End)%&gt;%
+  do(d=dist(.[-1],&quot;euclidean&quot;))%&gt;%ungroup()%&gt;%
+  summarize(sum(d[[1]]^2)/136 + sum(d[[2]]^2)/124+ sum(d[[3]]^2)/127+ sum(d[[4]]^2)/132+ sum(d[[5]]^2)/155+ sum(d[[6]]^2)/123)%&gt;%pull
+
+F_obs&lt;-((SST-SSW)/(6-1))/(SSW/(797-6))
+
+Fstat&lt;-replicate(1000,{
+  new &lt;- dmft%&gt;%mutate(Treatment=sample(Treatment))
+  SSW &lt;- new%&gt;%group_by(Treatment)%&gt;%select(Treatment,Begin,End)%&gt;%
+    do(d=dist(.[-1],&quot;euclidean&quot;))%&gt;%ungroup()%&gt;%
+    summarize(sum(d[[1]]^2)/136 + sum(d[[2]]^2)/124+ sum(d[[3]]^2)/127+ sum(d[[4]]^2)/132+ sum(d[[5]]^2)/155+ sum(d[[6]]^2)/123)%&gt;%pull
+  ((SST-SSW)/5)/(SSW/791)
+})
+
+{hist(Fstat,prob = T); abline(v=F_obs, col=&quot;blue&quot;, add=T)}</code></pre>
+<p><img src="/project/project2_files/figure-html/Randomization-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>mean(Fstat&gt;F_obs)</code></pre>
+<pre><code>## [1] 0</code></pre>
+<p><strong>I decided to investigate whether the number of caries before and after treatment were significantly different by group, and so chose to perform a randomization test MANOVA to ensure a mean difference between groups. Randomizing the observations among groups allows for a null hypothesis stating that the average number of caries for each treatment group is not significantly different from the other groups at the same time (before or after treatment). In addition, the alternative hypothesis then becomes that the average number of caries in each treatment group significantly differs from the other groups at the same time relative to treatment. After performing the randomization test with 5 degrees of freedom between groups and 791 within residuals, the F-statistic observed is 4.4792 (p &lt; 0.001). This was verified after manually creating a null distribution for the F-statistic. Visualizing this null distribution and the observed F-statistic using a blue line shows that our observed statistic is literally “off the charts”. This shows that our statistic is highly significant and that the treatment groups significantly differ in the average number of caries based on the time relative to treatment.</strong></p>
+</div>
+<div id="linear-regression" class="section level2">
+<h2>Linear Regression</h2>
+<ul>
+<li><p><strong>3. (40 pts)</strong> Build a linear regression model predicting one of your response variables from at least 2 other variables, including their interaction. Mean-center any numeric variables involved in the interaction.</p>
+<ul>
+<li>Interpret the coefficient estimates (do not discuss significance) (10)</li>
+<li>Plot the regression using <code>ggplot()</code> using geom_smooth(method=“lm”). If your interaction is numeric by numeric, refer to code in the slides to make the plot or check out the <code>interactions</code> package, which makes this easier. If you have 3 or more predictors, just chose two of them to plot for convenience. (10)</li>
+<li>What proportion of the variation in the outcome does your model explain? (4)</li>
+<li>Check assumptions of linearity, normality, and homoskedasticity either graphically or using a hypothesis test (5)</li>
+<li>Regardless, recompute regression results with robust standard errors via <code>coeftest(..., vcov=vcovHC(...))</code>. Discuss significance of results, including any changes from before/after robust SEs if applicable. (10)</li>
+</ul></li>
+</ul>
+<pre class="r"><code>dmft&lt;-dmft%&gt;%mutate(End_c=End-mean(End),Begin_c=Begin-mean(Begin))
+fit &lt;- lm(End_c ~ Begin_c*Treatment, data=dmft); summary(fit)</code></pre>
+<pre><code>##
+## Call:
+## lm(formula = End_c ~ Begin_c * Treatment, data = dmft)
+##
+## Residuals:
+## Min 1Q Median 3Q Max
+## -3.7531 -0.8428 -0.2390 0.9010 5.1167
+##
+## Coefficients:
+## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) 0.29206 0.11578 2.523 0.011848 *
+## Begin_c 0.53111 0.04722 11.248 &lt; 2e-16 ***
+## Treatmenteduc -0.44060 0.16909 -2.606 0.009340 **
+## Treatmentall -0.69199 0.16764 -4.128 4.05e-05 ***
+## Treatmentenrich 0.01319 0.16400 0.080 0.935908
+## Treatmentrinse -0.49446 0.15778 -3.134 0.001789 **
+## Treatmenthygiene -0.15181 0.16812 -0.903 0.366819
+## Begin_c:Treatmenteduc -0.26022 0.06845 -3.801 0.000155
+***
+## Begin_c:Treatmentall -0.26780 0.06624 -4.043 5.80e-05
+***
+## Begin_c:Treatmentenrich -0.13490 0.06400 -2.108 0.035366
+*
+## Begin_c:Treatmentrinse -0.13974 0.06171 -2.264 0.023819
+*
+## Begin_c:Treatmenthygiene -0.05280 0.06822 -0.774
+0.439169
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1
+##
+## Residual standard error: 1.334 on 785 degrees of freedom
+## Multiple R-squared: 0.3957, Adjusted R-squared: 0.3873
+## F-statistic: 46.74 on 11 and 785 DF, p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>ggplot(dmft, aes(x=Begin_c, y=End_c,group=Treatment))+geom_jitter(aes(color=Treatment))+
+  geom_smooth(method=&quot;lm&quot;,aes(color=Treatment))+xlab(&quot;Mean-Centered # of Caries at Beginning of Treatment&quot;)+ylab(&quot;Mean-Centered # of Caries at End of Treatment&quot;)</code></pre>
+<p><img src="/project/project2_files/figure-html/Linear%20Regression-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>resids&lt;-fit$residuals
+fitvals&lt;-fit$fitted.values
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color=&#39;red&#39;)</code></pre>
+<p><img src="/project/project2_files/figure-html/Linear%20Regression-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot()+geom_histogram(aes(resids), bins=20)</code></pre>
+<p><img src="/project/project2_files/figure-html/Linear%20Regression-3.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot()+geom_qq(aes(sample=resids))+geom_qq_line(aes(sample=resids))</code></pre>
+<p><img src="/project/project2_files/figure-html/Linear%20Regression-4.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>shapiro.test(resids)</code></pre>
+<pre><code>## 
+##  Shapiro-Wilk normality test
+## 
+## data:  resids
+## W = 0.99083, p-value = 7.246e-05</code></pre>
+<pre class="r"><code>library(sandwich)
+library(lmtest)
+bptest(fit)</code></pre>
+<pre><code>## 
+##  studentized Breusch-Pagan test
+## 
+## data:  fit
+## BP = 86.224, df = 11, p-value = 9.123e-14</code></pre>
+<pre class="r"><code>summary(fit)$coef%&gt;%round(4)</code></pre>
+<pre><code>## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) 0.2921 0.1158 2.5225 0.0118
+## Begin_c 0.5311 0.0472 11.2482 0.0000
+## Treatmenteduc -0.4406 0.1691 -2.6058 0.0093
+## Treatmentall -0.6920 0.1676 -4.1279 0.0000
+## Treatmentenrich 0.0132 0.1640 0.0804 0.9359
+## Treatmentrinse -0.4945 0.1578 -3.1340 0.0018
+## Treatmenthygiene -0.1518 0.1681 -0.9030 0.3668
+## Begin_c:Treatmenteduc -0.2602 0.0685 -3.8014 0.0002
+## Begin_c:Treatmentall -0.2678 0.0662 -4.0427 0.0001
+## Begin_c:Treatmentenrich -0.1349 0.0640 -2.1078 0.0354
+## Begin_c:Treatmentrinse -0.1397 0.0617 -2.2644 0.0238
+## Begin_c:Treatmenthygiene -0.0528 0.0682 -0.7740 0.4392</code></pre>
+<pre class="r"><code>coeftest(fit, vcov = vcovHC(fit))</code></pre>
+<pre><code>##
+## t test of coefficients:
+##
+## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) 0.292064 0.106315 2.7471 0.0061494 **
+## Begin_c 0.531114 0.042744 12.4255 &lt; 2.2e-16 ***
+## Treatmenteduc -0.440602 0.154282 -2.8558 0.0044059 **
+## Treatmentall -0.691992 0.171879 -4.0260 6.222e-05 ***
+## Treatmentenrich 0.013192 0.159772 0.0826 0.9342166
+## Treatmentrinse -0.494462 0.149570 -3.3059 0.0009897 ***
+## Treatmenthygiene -0.151806 0.173377 -0.8756 0.3815255
+## Begin_c:Treatmenteduc -0.260220 0.069928 -3.7212
+0.0002124 ***
+## Begin_c:Treatmentall -0.267799 0.065873 -4.0654
+5.278e-05 ***
+## Begin_c:Treatmentenrich -0.134901 0.063287 -2.1316
+0.0333505 *
+## Begin_c:Treatmentrinse -0.139741 0.059873 -2.3339
+0.0198507 *
+## Begin_c:Treatmenthygiene -0.052803 0.070437 -0.7496
+0.4536905
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<p><strong>I designed a linear model to predict the number of caries for a child relative to the average at the end of treatment. While there are a lot of significant predictors, surprisingly, some variables are not significant in predicting the number of caries at the end of treatment. The intercept coefficient indicates that, for an average child in the control group with an average number of caries at the beginning of treatment (~3.3237 caries), the child will have 0.2921 caries more than average (~1.8545 caries) at the end of treatment. The coefficient for ‘Begin_c’ indicates that having one caries more than the average at the beginning of treatment suggests the child will end treatment with 0.5311 more caries than average. Likewise, the coefficients for the different treatment groups indicate their effects on the number of caries at the end of treatment, with the ‘educ’ (-0.4406), ‘all’ (-0.6920), ‘rinse’ (-0.4945), and ‘hygiene’ (-0.1518) treatment groups predicted to reduce the number of caries relative to the average while the ‘enrich’ treatment group (0.0132) is predicted to increase the number of caries relative to the average at the end of treatment. The interactions between the mean-centered number of caries at the beginning of treatment and the treatment groups are all predicted to reduce the number of caries at the end of the treatment when compared to the average. From the adjusted R-squared of the linear model created, we see that 38.73% of the total variation in number of caries at the end of treatment can be explained by the variables used in the model and their interaction. Based on the plot of the model, there doesn’t seem to be a strong linearity to the input and output variables in this dataset. Adding on to that, on the residual plot, we see that the data does not meet the assumption of homoscedasticity either, with the residuals maintaining an even spread throughout the range of fitted values. This is verified through the significantly small p-value (0.00000000000009123) determined from the Breusch-Pagan test. However, the assumption of normality is met, and this is proven through the roughly normal distribution on the histogram and the Q-Q plot strictly following a diagonal line. Unfortunately, verifying this model through the Shapiro-Wilk test determines that the dataset does not meet the normality assumption, with the significant p-value (0.00007246) serving to reject the null hypothesis of normality. After computing robust standard errors, we find that the overall significance of the coefficients does not change, even if the estimates for the intercept and the ‘rinse’ treatment group increases in significance. Additionally, the standard error of some variables are increased or decreased. Overall, this indicates that the coefficient for the beginning number of caries, ‘Begin_c’, and the treatment groups of ‘educ’, ‘all’, and ‘rinse’, strongly influence the number of caries at the end of treatment, along with the interaction between ‘Begin_c’ and the treatment groups ‘educ’, ‘all’, ‘enrich’, and ‘rinse’.</strong></p>
+</div>
+<div id="bootstrapped-linear-regression" class="section level2">
+<h2>Bootstrapped Linear Regression</h2>
+<ul>
+<li><strong>4. (5 pts)</strong> Rerun same regression model (with the interaction), but this time compute bootstrapped standard errors (either by resampling observations or residuals). Discuss any changes you observe in SEs and p-values using these SEs compared to the original SEs and the robust SEs)</li>
+</ul>
+<pre class="r"><code>set.seed(348)
+  fit&lt;-lm(End_c ~ Begin_c*Treatment, data=dmft)
+  resids&lt;-fit$residuals
+  fitted&lt;-fit$fitted.values 
+  
+  resid_resamp&lt;-replicate(5000,{
+    new_resids&lt;-sample(resids,replace=TRUE)
+    dmft$new_End_c&lt;-fitted+new_resids 
+    fit&lt;-lm(new_End_c~Begin_c*Treatment, data=dmft)
+    coef(fit)
+})
+resid_resamp%&gt;%t%&gt;%as.data.frame%&gt;%summarize_all(sd)%&gt;%pivot_longer(1:12,names_to = &quot;Coefficient&quot;, values_to = &quot;Bootstrapped SE&quot;)</code></pre>
+<pre><code>## # A tibble: 12 x 2
+##    Coefficient              `Bootstrapped SE`
+##    &lt;chr&gt;                                &lt;dbl&gt;
+##  1 (Intercept)                         0.116 
+##  2 Begin_c                             0.0474
+##  3 Treatmenteduc                       0.168 
+##  4 Treatmentall                        0.164 
+##  5 Treatmentenrich                     0.161 
+##  6 Treatmentrinse                      0.160 
+##  7 Treatmenthygiene                    0.167 
+##  8 Begin_c:Treatmenteduc               0.0684
+##  9 Begin_c:Treatmentall                0.0658
+## 10 Begin_c:Treatmentenrich             0.0637
+## 11 Begin_c:Treatmentrinse              0.0610
+## 12 Begin_c:Treatmenthygiene            0.0690</code></pre>
+<pre class="r"><code>summary(fit)$coef%&gt;%round(4)</code></pre>
+<pre><code>## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) 0.2921 0.1158 2.5225 0.0118
+## Begin_c 0.5311 0.0472 11.2482 0.0000
+## Treatmenteduc -0.4406 0.1691 -2.6058 0.0093
+## Treatmentall -0.6920 0.1676 -4.1279 0.0000
+## Treatmentenrich 0.0132 0.1640 0.0804 0.9359
+## Treatmentrinse -0.4945 0.1578 -3.1340 0.0018
+## Treatmenthygiene -0.1518 0.1681 -0.9030 0.3668
+## Begin_c:Treatmenteduc -0.2602 0.0685 -3.8014 0.0002
+## Begin_c:Treatmentall -0.2678 0.0662 -4.0427 0.0001
+## Begin_c:Treatmentenrich -0.1349 0.0640 -2.1078 0.0354
+## Begin_c:Treatmentrinse -0.1397 0.0617 -2.2644 0.0238
+## Begin_c:Treatmenthygiene -0.0528 0.0682 -0.7740 0.4392</code></pre>
+<pre class="r"><code>coeftest(fit, vcov = vcovHC(fit))</code></pre>
+<pre><code>##
+## t test of coefficients:
+##
+## Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) 0.292064 0.106315 2.7471 0.0061494 **
+## Begin_c 0.531114 0.042744 12.4255 &lt; 2.2e-16 ***
+## Treatmenteduc -0.440602 0.154282 -2.8558 0.0044059 **
+## Treatmentall -0.691992 0.171879 -4.0260 6.222e-05 ***
+## Treatmentenrich 0.013192 0.159772 0.0826 0.9342166
+## Treatmentrinse -0.494462 0.149570 -3.3059 0.0009897 ***
+## Treatmenthygiene -0.151806 0.173377 -0.8756 0.3815255
+## Begin_c:Treatmenteduc -0.260220 0.069928 -3.7212
+0.0002124 ***
+## Begin_c:Treatmentall -0.267799 0.065873 -4.0654
+5.278e-05 ***
+## Begin_c:Treatmentenrich -0.134901 0.063287 -2.1316
+0.0333505 *
+## Begin_c:Treatmentrinse -0.139741 0.059873 -2.3339
+0.0198507 *
+## Begin_c:Treatmenthygiene -0.052803 0.070437 -0.7496
+0.4536905
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<p><strong>After adjusting the regression model to find boostrapped standard errors through resampling residuals, we find that the SEs of the bootstrapped model are comparable to the original SEs, with the maximum difference between Standard Errors being 0.036 for the ‘all’ treatment group. As such, we would not expect the p-value to change in significance. However, when comparing to the robust standard errors, we see that there are larger differences, which can be seen in the comparison of standard errors of the coefficient for the treatment group ‘educ’. This group has a standard error of 0.1682 with bootstrapping and 0.1543 with robust SE, a difference of 0.0139. However, this is again a relatively small difference in SEs, and we would not expect the p-values to change significantly as a result.</strong></p>
+</div>
+<div id="limited-logistic-regression" class="section level2">
+<h2>Limited Logistic Regression</h2>
+<ul>
+<li><p><strong>5. (30 pts)</strong> Fit a logistic regression model predicting a binary variable (if you don’t have one, make/get one) from at least two explanatory variables (interaction not necessary).</p>
+<ul>
+<li>Interpret coefficient estimates in context (10)</li>
+<li>Report a confusion matrix for your logistic regression (5)</li>
+<li>Compute and discuss the Accuracy, Sensitivity (TPR), Specificity (TNR), and Precision (PPV) of your model (5)</li>
+<li>Using ggplot, make a density plot of the log-odds (logit) colored/grouped by your binary outcome variable (5)</li>
+<li>Generate an ROC curve (plot) and calculate AUC (either manually or with a package); interpret (5)</li>
+</ul></li>
+</ul>
+<pre class="r"><code>data&lt;-dmft%&gt;%mutate(y=ifelse(End_c&gt;0,0,1),outcome=ifelse(End_c&gt;0,0,1))
+limlog&lt;-glm(y~Begin_c+Treatment, data=data, family=binomial)
+coeftest(limlog)</code></pre>
+<pre><code>##
+## z test of coefficients:
+##
+## Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept) -0.448349 0.200421 -2.2370 0.025284 *
+## Begin_c -0.479556 0.037490 -12.7917 &lt; 2.2e-16 ***
+## Treatmenteduc 0.479196 0.288215 1.6626 0.096385 .
+## Treatmentall 0.932977 0.294607 3.1668 0.001541 **
+## Treatmentenrich -0.098757 0.288101 -0.3428 0.731759
+## Treatmentrinse 0.667095 0.277118 2.4073 0.016073 *
+## Treatmenthygiene 0.404417 0.288930 1.3997 0.161602
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>exp(coeftest(limlog))[,1]</code></pre>
+<pre><code>## (Intercept) Begin_c Treatmenteduc Treatmentall
+Treatmentenrich
+## 0.6386818 0.6190579 1.6147759 2.5420653 0.9059628
+## Treatmentrinse Treatmenthygiene
+## 1.9485693 1.4984282</code></pre>
+<pre class="r"><code>data$prob &lt;- predict(limlog,type=&quot;response&quot;)
+data$predicted &lt;- ifelse(data$prob&gt;.5,&quot;Less than 2 caries&quot;,&quot;2 or More caries&quot;)
+data$outcome&lt;-factor(data$outcome,levels=c(&quot;0&quot;,&quot;1&quot;))
+levels(data$outcome) &lt;- c(&quot;2 or More Caries&quot;, &quot;Less Than 2 Caries&quot;)
+table(truth=data$outcome, prediction=data$predicted)%&gt;%addmargins</code></pre>
+<pre><code>## prediction
+## truth 2 or More caries Less than 2 caries Sum
+## 2 or More Caries 288 115 403
+## Less Than 2 Caries 107 287 394
+## Sum 395 402 797</code></pre>
+<pre class="r"><code>(288+287)/797 # Accuracy</code></pre>
+<pre><code>## [1] 0.7214555</code></pre>
+<pre class="r"><code>287/394 # Sensitivity/TPR</code></pre>
+<pre><code>## [1] 0.7284264</code></pre>
+<pre class="r"><code>288/403 # Specificity/TNR</code></pre>
+<pre><code>## [1] 0.7146402</code></pre>
+<pre class="r"><code>287/402 # Precision/PPV</code></pre>
+<pre><code>## [1] 0.7139303</code></pre>
+<pre class="r"><code>class_diag(data$prob,data$outcome)</code></pre>
+<pre><code>## acc sens spec ppv auc
+## Less Than 2 Caries 0.7214555 0.7284264 0.7146402
+0.7139303 0.8039828</code></pre>
+<pre class="r"><code>data$logit&lt;-predict(limlog)
+ggplot(data,aes(logit, fill=outcome))+geom_density(alpha=.3)+geom_rug(aes(logit,color=outcome))+
+  geom_vline(xintercept=0,lty=2)+theme(legend.position=c(.125,.875))+xlab(&quot;logit (log-odds)&quot;)</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-1-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>library(plotROC)
+ROCplot&lt;-ggplot(data)+geom_roc(aes(d=outcome,m=prob), n.cuts=0)+geom_segment(aes(x=0,y=0,xend=1,yend=1),lty=2)+xlab(&quot;FPR&quot;)+ylab(&quot;TPR&quot;)
+ROCplot</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-1-2.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>calc_auc(ROCplot)</code></pre>
+<pre><code>##   PANEL group       AUC
+## 1     1    -1 0.8039828</code></pre>
+<p><strong>Using a logistic regression to predict the odds of a child having less than two caries after treatment, however, finds some interesting results. At a significance level of 0.05, we see that only the coefficients for the intercept, ‘Begin’, and the treatment groups ‘all’ and ‘rinse’ are of interest. In context, the intercept predicts that children that start in the control group with the average number of caries before treatment will have odds of 0.6387:1 of having less than 2 caries at the end of treatment, an unfortunate outcome. In addition to that, we see that with each additional caries over average that the child has before treatment, the odds of having less than two caries after treatment decreases by 38%. However, thankfully, we see that being in the ‘all’ or ‘rinse’ treatment groups multiplies the odds of the child ending treatment with less than two caries by 2.54 and 1.95, respectively. While insignificant, we see that the other treatment groups except ‘enrich’ also increases the odds of having less than two caries at the end of treatment, with ‘educ’ treatment multiplying the odds by 1.61 and ‘hygiene’ multiplying the odds by 1.50. However, the ‘enrich’ treatment group was actually found to decrease the odds of finishing treatment with less than 2 caries by 9%, but this estimate was insignificant as stated earlier. Creating a confusion matrix for the predictions of this model shows us that the accuracy of the model at predicting whether the child would end treatment with less than 2 caries was 72.15%. The model was also able to predict 287 of the 394 children who ended treatment with less than 2 caries, an sensitivity of 72.84%. Conversely, the model predicted 288 of the 403 children ending treatment with 2 caries or more correctly, for a specificity of 71.46%. Finally, 287 of the 402 children predicted as ending treatment with less than 2 caries actually did so for a precision, or Positive Predictive Value of 71.39%. While the classification diagnostics for this model appear to be high, it also indicates a large chance for error in prediction. However, generation of the ROC curve and AUC calculation (80.4%) pin this model as good at predicting new data. Visually, the curve approaches the top-left corner of the graph (good) and the high AUC indicates a large degree of separability for the model. These diagnostics statistically prove the logistic regression model is good at predicting if these children will end treatment with less than 2 caries or not.</strong></p>
+</div>
+<div id="full-logistic-regression" class="section level2">
+<h2>Full Logistic Regression</h2>
+<ul>
+<li><p><strong>6. (25 pts)</strong> Perform a logistic regression predicting the same binary response variable from <em>ALL</em> of the rest of your variables (the more, the better!)</p>
+<ul>
+<li>Fit model, compute in-sample classification diagnostics (Accuracy, Sensitivity, Specificity, Precision, AUC), and interpret (5)</li>
+<li>Perform 10-fold (or repeated random sub-sampling) CV with the same model and report average out-of-sample classification diagnostics (Accuracy, Sensitivity, Specificity, Precision, and AUC); interpret AUC and compare with the in-sample metrics (10)</li>
+<li>Perform LASSO on the same model/variables. Choose lambda to give the simplest model whose accuracy is near that of the best (i.e., <code>lambda.1se</code>). Discuss which variables are retained. (5)</li>
+<li>Perform 10-fold CV using only the variables lasso selected: compare model’s out-of-sample AUC to that of your logistic regressions above (5)</li>
+</ul></li>
+</ul>
+<pre class="r"><code>dataf&lt;-dmft%&gt;%mutate(y=ifelse(End_c&gt;0,0,1),outcomef=ifelse(End_c&gt;0,0,1))
+log&lt;-glm(y~Begin_c+Treatment+Gender+Ethnic, data=dataf, family=binomial)
+coeftest(log)</code></pre>
+<pre><code>##
+## z test of coefficients:
+##
+## Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept) -0.423065 0.241378 -1.7527 0.079652 .
+## Begin_c -0.476744 0.037618 -12.6732 &lt; 2.2e-16 ***
+## Treatmenteduc 0.475378 0.291874 1.6287 0.103375
+## Treatmentall 0.941951 0.295350 3.1893 0.001426 **
+## Treatmentenrich -0.088399 0.289495 -0.3054 0.760096
+## Treatmentrinse 0.674637 0.278715 2.4205 0.015498 *
+## Treatmenthygiene 0.443413 0.294842 1.5039 0.132607
+## Gendermale -0.052782 0.168331 -0.3136 0.753855
+## Ethnicwhite -0.069149 0.185715 -0.3723 0.709638
+## Ethnicblack 0.175376 0.265149 0.6614 0.508341
+## ---
+## Signif. codes: 0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1
+&#39; &#39; 1</code></pre>
+<pre class="r"><code>exp(coeftest(log))[,1]</code></pre>
+<pre><code>## (Intercept) Begin_c Treatmenteduc Treatmentall
+Treatmentenrich
+## 0.6550360 0.6208015 1.6086222 2.5649801 0.9153958
+## Treatmentrinse Treatmenthygiene Gendermale Ethnicwhite
+Ethnicblack
+## 1.9633198 1.5580160 0.9485868 0.9331872 1.1916940</code></pre>
+<pre class="r"><code>dataf$probf &lt;- predict(log,type=&quot;response&quot;)
+dataf$predictedf &lt;- ifelse(dataf$probf&gt;.5,&quot;Less than 2 caries&quot;,&quot;2 or More caries&quot;)
+dataf$outcomef&lt;-factor(dataf$outcomef,levels=c(&quot;0&quot;,&quot;1&quot;))
+levels(dataf$outcomef) &lt;- c(&quot;2 or More Caries&quot;, &quot;Less Than 2 Caries&quot;)
+table(truth=dataf$outcomef, prediction=dataf$predictedf)%&gt;%addmargins</code></pre>
+<pre><code>## prediction
+## truth 2 or More caries Less than 2 caries Sum
+## 2 or More Caries 290 113 403
+## Less Than 2 Caries 107 287 394
+## Sum 397 400 797</code></pre>
+<pre class="r"><code>class_diag(dataf$probf,dataf$outcomef)</code></pre>
+<pre><code>## acc sens spec ppv auc
+## Less Than 2 Caries 0.7239649 0.7284264 0.719603 0.7175
+0.8039324</code></pre>
+<pre class="r"><code>set.seed(348)
+k=10
+dat&lt;-dataf[sample(nrow(dataf)),] 
+folds&lt;-cut(seq(1:nrow(dataf)),breaks=k,labels=F)
+diags&lt;-NULL
+for(i in 1:k){
+  train&lt;-dat[folds!=i,] 
+  test&lt;-dat[folds==i,]
+  
+  truth&lt;-test$y
+  
+  fitf&lt;-glm(y~Begin+Treatment+Gender+Ethnic,data=train,family=&quot;binomial&quot;)
+  
+  probs&lt;-predict(fitf,newdata = test,type=&quot;response&quot;)
+  
+  diags&lt;-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)</code></pre>
+<pre><code>##         acc      sens      spec      ppv      auc
+## 1 0.7177057 0.7219708 0.7098032 0.707987 0.792045</code></pre>
+<pre class="r"><code>library(glmnet)
+set.seed(348)
+y&lt;-as.matrix(dataf$y)
+x&lt;-model.matrix(y~Begin_c+Treatment+Gender+Ethnic,data=dataf)[,-1]
+cv&lt;-cv.glmnet(x,y)
+{plot(cv$glmnet.fit, &quot;lambda&quot;, label=TRUE); abline(v = log(cv$lambda.1se)); abline(v = log(cv$lambda.min),lty=2)}</code></pre>
+<p><img src="/project/project2_files/figure-html/unnamed-chunk-2-1.png" width="768" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>cv&lt;-cv.glmnet(x,y,family=&quot;binomial&quot;)
+lasso&lt;-glmnet(x,y,family=&quot;binomial&quot;,lambda=cv$lambda.1se)
+coef(lasso)</code></pre>
+<pre><code>## 10 x 1 sparse Matrix of class &quot;dgCMatrix&quot;
+##                           s0
+## (Intercept)      -0.03496314
+## Begin_c          -0.32695843
+## Treatmenteduc     .         
+## Treatmentall      .         
+## Treatmentenrich   .         
+## Treatmentrinse    .         
+## Treatmenthygiene  .         
+## Gendermale        .         
+## Ethnicwhite       .         
+## Ethnicblack       .</code></pre>
+<pre class="r"><code>set.seed(348)
+k=10
+dat&lt;-dataf[sample(nrow(dataf)),] 
+folds&lt;-cut(seq(1:nrow(dataf)),breaks=k,labels=F)
+diags&lt;-NULL
+for(i in 1:k){
+  train&lt;-dat[folds!=i,] 
+  test&lt;-dat[folds==i,]
+  
+  truth&lt;-test$y
+  
+  fitf&lt;-glm(y~Begin,data=train,family=&quot;binomial&quot;)
+  
+  probs&lt;-predict(fitf,newdata = test,type=&quot;response&quot;)
+  
+  diags&lt;-rbind(diags,class_diag(probs,truth))
+}
+summarize_all(diags,mean)</code></pre>
+<pre><code>##         acc      sens      spec       ppv       auc
+## 1 0.7228006 0.7524895 0.6897418 0.7010583 0.7922652</code></pre>
+<p><strong>When performing the same logistic regression based on all the variables, it is seen that the only significant estimates are that of the intercept, the treatment groups ‘all’ &amp; ‘rinse’, along with the coefficient for the number of caries at the beginning of the study, ‘Begin’. Just like the previous regression models, this model shows that increasing the number of caries at the beginning decreases the odds of ending treatment with less than 2 caries, while the combination treatment of ‘all’ or the ‘rinse’ treatment increases the odds. The accuracy (0.7240), sensitivity (0.7284), specificity (0.7196), precision (0.7175), and AUC (0.8039) of this model show that it is good at predicting new data and is consistent among each of its measures. Performing 10-fold CV with this same model leads to somewhat similar diagnostics out-of-sample, where the accuracy (0.7177), sensitivity (0.7220), specificity (0.7098), precision (0.7080), and AUC (0.7920) of this model show that it is fair at predicting new data and is consistent among each of its measures, even if it is slightly worse than the original in-sample diagnostics without correction. Performing LASSO on this model and its variables shows that the smallest coefficients, and so the most accurate lambda, occur at a value of at least lambda+1se. Using this value leads to only the intercept and the ‘Begin’ variable being kept, a sign that the simplest model with high accuracy in predicting the odds of having less than 2 caries at the end of the study only requires the number of caries the child had at the beginning of the study to be accurate. Performing 10-fold CV on this new model leads to a slightly surprising result. While the simple model was determined to still have a high level of predictability, the accuracy (0.7228), sensitivity (0.7525), specificity (0.6897), precision (0.7011), and AUC (0.7923) of this simple model slightly surpass the diagnostics of the 10-fold CV on the full model. In fact, the simple model even has greater accuracy and sensitivity than the overfitted model, showing that it has improved beyond the original classification diagnostics even after correcting for overfitting. Overall, we see that these models are fair to good at predicting the caries status of children after treatment, and that the number of caries the children had at the beginning of the study is the best predictor of such an effect.</strong></p>
+</div>
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
+<p><strong>After analysis of the data, we see that there are some significant effects of treatment on the caries status of urban schoolchildren near Belo Horizonte. Using MANOVAs &amp; t-tests, we find that the caries status of children did not significantly differ between groups before or after treatment, with the exception of the ‘all’, ‘rinse’, and ‘educ’ groups, whose significance we will see later on. Using randomization MANOVA, we found that a mean difference between treatment groups for caries status exists, and that this difference is significant based on its rarity. Linear modeling displayed the significant effect of the ‘all’, ‘rinse’, and ‘educ’ treatment groups on the number of caries schoolchildren will have after treatment while accounting for 39% of the variability in the dataset. Additionally, this model showed that the number of caries the children had at the beginning, ‘Begin’, was the biggest predictor of this effect, especially when considering its signficant interactions with the treatment groups. Bootstrapping the model supported these findings, with the Standard Errors not differing by a notable amount or affecting the significance of the findings. However, creating a logistic regression model returns slightly different, yet good prediction results. We see that the effect of the ‘educ’ treatment group becomes insignificant, and that treatment groups ‘all’ and ‘rinse’ increase the odds of ending treatment with less than two caries while starting with more caries (‘Begin’) decreases them. These predictors are reduced even further when adjusting the model for overfitting and simplicity using 10-fold CV and LASSO, with findings showing that only the variable ‘Begin’ is necessary to predict as well as the original logistic regression model. Overall, we see that treating children through education, hygiene, mouthwash, or a combination with enrichment may increase chances of reducing and mitigating the development of dental caries. However, only mouthwash and the combination treatment are significant in creating this effect. A surprise finding, however, is that enrichment of the school diet with rice bran may potentially lead to the development of more caries, but this effect is yet to be found significant and may be due to a false sense of security. Regardless of treatment, the main and most significant predictor of dental caries after treatment is the number of caries a child has before treatment, which can be seen in the simplified model still being fair to good at predicting new data.</strong></p>
+</div>
